@@ -8,37 +8,32 @@ Production-grade Streamlit Major Project Dashboard featuring:
 5. Academic Evaluation & Viva Mode (Live Precision/Recall benchmark, Viva Q&A)
 6. Report Generator (Downloadable Markdown & HTML audit reports)
 """
-import os
-import json
-import base64
-from pathlib import Path
-from datetime import datetime
-import streamlit as st
-import plotly.express as px
-import plotly.graph_objects as go
-import pandas as pd
 
+from datetime import datetime
+
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+
+from src.benchmark import BenchmarkRunner
 from src.config import (
-    GEMINI_API_KEY,
-    DEFAULT_GEMINI_MODEL,
     AVAILABLE_MODELS,
     DEFAULT_TEMPERATURE,
+    GEMINI_API_KEY,
     PROJECT_ROOT,
 )
-from src.models import (
-    ReviewResult,
-    Issue,
-    IssueSeverity,
-    IssueCategory,
-    MergeRecommendation,
-    PRDescription,
-)
-from src.diff_parser import DiffParser, ParsedDiff
-from src.reviewer import CodeReviewer
-from src.pr_generator import PRGenerator
-from src.benchmark import BenchmarkRunner
+from src.diff_parser import DiffParser
 from src.git_manager import GitManager
 from src.github_client import GitHubClient
+from src.models import (
+    Issue,
+    IssueSeverity,
+    MergeRecommendation,
+    PRDescription,
+    ReviewResult,
+)
+from src.pr_generator import PRGenerator
+from src.reviewer import CodeReviewer
 
 # ──────────────────────────────────────────────
 # Page Config
@@ -53,7 +48,8 @@ st.set_page_config(
 # ──────────────────────────────────────────────
 # Clean Minimal CSS
 # ──────────────────────────────────────────────
-st.markdown("""
+st.markdown(
+    """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -69,7 +65,9 @@ st.markdown("""
     .diff-viewer .line-ctx { color: #a6adc8; display: block; padding: 1px 6px; }
     .diff-viewer .flaw-mark { color: #fab387; font-weight: 600; }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # ──────────────────────────────────────────────
 # Session State
@@ -103,7 +101,11 @@ with st.sidebar:
     selected_model = st.selectbox("Model", AVAILABLE_MODELS, index=0)
 
     temperature = st.slider(
-        "Temperature", 0.0, 1.0, DEFAULT_TEMPERATURE, 0.05,
+        "Temperature",
+        0.0,
+        1.0,
+        DEFAULT_TEMPERATURE,
+        0.05,
         help="Low values (0.1–0.2) recommended for deterministic auditing.",
     )
 
@@ -135,14 +137,16 @@ st.divider()
 # ──────────────────────────────────────────────
 # Tabs
 # ──────────────────────────────────────────────
-tabs = st.tabs([
-    "Ingestion & Audit",
-    "Security Analytics",
-    "Code Inspector",
-    "PR Synthesizer",
-    "Academic Benchmark",
-    "Report Export",
-])
+tabs = st.tabs(
+    [
+        "Ingestion & Audit",
+        "Security Analytics",
+        "Code Inspector",
+        "PR Synthesizer",
+        "Academic Benchmark",
+        "Report Export",
+    ]
+)
 
 
 # ═══════════════════════════════════════════════
@@ -153,8 +157,15 @@ with tabs[0]:
 
     ingestion_mode = st.radio(
         "Ingestion mode",
-        ["Benchmark Samples", "Upload .diff", "Paste Diff", "Local Git Repo", "GitHub PR"],
-        horizontal=True, label_visibility="collapsed",
+        [
+            "Benchmark Samples",
+            "Upload .diff",
+            "Paste Diff",
+            "Local Git Repo",
+            "GitHub PR",
+        ],
+        horizontal=True,
+        label_visibility="collapsed",
     )
 
     diff_content = ""
@@ -182,7 +193,9 @@ with tabs[0]:
 
     # ── Upload ──
     elif ingestion_mode == "Upload .diff":
-        uploaded = st.file_uploader("Upload a `.diff` or `.patch` file", type=["diff", "patch", "txt"])
+        uploaded = st.file_uploader(
+            "Upload a `.diff` or `.patch` file", type=["diff", "patch", "txt"]
+        )
         if uploaded:
             diff_content = uploaded.getvalue().decode("utf-8", errors="replace")
             diff_label = uploaded.name
@@ -200,11 +213,13 @@ with tabs[0]:
     elif ingestion_mode == "Local Git Repo":
         git_mgr = GitManager()
         if not git_mgr.is_valid_repo:
-            st.warning("Current directory is not a git repository (or Git is not on PATH).")
+            st.warning(
+                "Current directory is not a git repository (or Git is not on PATH)."
+            )
         else:
-            scope = st.selectbox("Scope", [
-                "Uncommitted changes", "Staged changes", "Recent commit"
-            ])
+            scope = st.selectbox(
+                "Scope", ["Uncommitted changes", "Staged changes", "Recent commit"]
+            )
             if scope == "Uncommitted changes":
                 diff_content = git_mgr.get_all_uncommitted_diff()
                 diff_label = f"Working tree ({git_mgr.current_branch})"
@@ -214,7 +229,11 @@ with tabs[0]:
             else:
                 commits = git_mgr.get_recent_commits(10)
                 if commits:
-                    c = st.selectbox("Commit", commits, format_func=lambda x: f"{x['hash']}  {x['message']}")
+                    c = st.selectbox(
+                        "Commit",
+                        commits,
+                        format_func=lambda x: f"{x['hash']}  {x['message']}",
+                    )
                     diff_content = git_mgr.get_commit_diff(c["full_hash"])
                     diff_label = f"Commit {c['hash']}"
 
@@ -232,7 +251,9 @@ with tabs[0]:
                 else:
                     st.session_state.current_diff = pr_diff
                     st.session_state.target_name = f"PR #{gh_pr} ({gh_repo})"
-                    st.success(f"Fetched: *{meta['title']}* (+{meta['additions']}/-{meta['deletions']})")
+                    st.success(
+                        f"Fetched: *{meta['title']}* (+{meta['additions']}/-{meta['deletions']})"
+                    )
 
     # ── Preview & Run ──
     if diff_content:
@@ -247,7 +268,9 @@ with tabs[0]:
 
         if st.button("Run Code Audit", type="primary", icon="🚀"):
             with st.spinner("Running tri-pillar audit…"):
-                reviewer = CodeReviewer(api_key=api_key_input, model_name=selected_model)
+                reviewer = CodeReviewer(
+                    api_key=api_key_input, model_name=selected_model
+                )
                 result = reviewer.review(
                     diff_input=diff_content,
                     repo_name="GitSentry Target",
@@ -279,9 +302,16 @@ with tabs[1]:
 
         # ── KPI metrics row ──
         m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Health Score", f"{res.health_score}/100",
-                   delta="Healthy" if res.health_score >= 85 else ("Warning" if res.health_score >= 60 else "Critical"),
-                   delta_color="normal" if res.health_score >= 85 else ("off" if res.health_score >= 60 else "inverse"))
+        m1.metric(
+            "Health Score",
+            f"{res.health_score}/100",
+            delta="Healthy"
+            if res.health_score >= 85
+            else ("Warning" if res.health_score >= 60 else "Critical"),
+            delta_color="normal"
+            if res.health_score >= 85
+            else ("off" if res.health_score >= 60 else "inverse"),
+        )
         m2.metric("Critical", res.critical_count, help="-25 pts each")
         m3.metric("High", res.high_count, help="-15 pts each")
         m4.metric("Medium / Low", f"{res.medium_count} / {res.low_count}")
@@ -292,7 +322,9 @@ with tabs[1]:
             MergeRecommendation.COMMENT: ("💬 COMMENT", "warning"),
             MergeRecommendation.REQUEST_CHANGES: ("⛔ REQUEST CHANGES", "error"),
         }
-        gate_text, gate_type = gate_map.get(res.merge_recommendation, ("UNKNOWN", "info"))
+        gate_text, gate_type = gate_map.get(
+            res.merge_recommendation, ("UNKNOWN", "info")
+        )
         getattr(st, gate_type)(f"**CI/CD Gate Decision:** {gate_text}")
 
         st.divider()
@@ -302,35 +334,75 @@ with tabs[1]:
 
         with chart_left:
             st.markdown("##### Severity Breakdown")
-            sev_data = pd.DataFrame({
-                "Severity": ["Critical", "High", "Medium", "Low", "Info"],
-                "Count": [res.critical_count, res.high_count, res.medium_count, res.low_count, res.info_count],
-            })
+            sev_data = pd.DataFrame(
+                {
+                    "Severity": ["Critical", "High", "Medium", "Low", "Info"],
+                    "Count": [
+                        res.critical_count,
+                        res.high_count,
+                        res.medium_count,
+                        res.low_count,
+                        res.info_count,
+                    ],
+                }
+            )
             sev_data = sev_data[sev_data["Count"] > 0]
             if sev_data.empty:
                 st.success("No issues detected!")
             else:
                 fig = px.pie(
-                    sev_data, names="Severity", values="Count", hole=0.5,
+                    sev_data,
+                    names="Severity",
+                    values="Count",
+                    hole=0.5,
                     color="Severity",
-                    color_discrete_map={"Critical": "#dc2626", "High": "#ea580c", "Medium": "#ca8a04", "Low": "#0284c7", "Info": "#6b7280"},
+                    color_discrete_map={
+                        "Critical": "#dc2626",
+                        "High": "#ea580c",
+                        "Medium": "#ca8a04",
+                        "Low": "#0284c7",
+                        "Info": "#6b7280",
+                    },
                 )
-                fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=320,
-                                  legend=dict(orientation="h", y=-0.1))
+                fig.update_layout(
+                    margin={"t": 10, "b": 10, "l": 10, "r": 10},
+                    height=320,
+                    legend={"orientation": "h", "y": -0.1},
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
         with chart_right:
             st.markdown("##### Tri-Pillar Category Distribution")
-            cat_df = pd.DataFrame({
-                "Pillar": ["Security", "Documentation", "Code Smells", "Performance"],
-                "Findings": [len(res.security_issues), len(res.doc_issues), len(res.code_smell_issues), len(res.performance_issues)],
-            })
+            cat_df = pd.DataFrame(
+                {
+                    "Pillar": [
+                        "Security",
+                        "Documentation",
+                        "Code Smells",
+                        "Performance",
+                    ],
+                    "Findings": [
+                        len(res.security_issues),
+                        len(res.doc_issues),
+                        len(res.code_smell_issues),
+                        len(res.performance_issues),
+                    ],
+                }
+            )
             fig2 = px.bar(
-                cat_df, x="Pillar", y="Findings", color="Pillar",
+                cat_df,
+                x="Pillar",
+                y="Findings",
+                color="Pillar",
                 color_discrete_sequence=["#dc2626", "#0284c7", "#7c3aed", "#059669"],
             )
-            fig2.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=320, showlegend=False,
-                               xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="#e5e7eb"))
+            fig2.update_layout(
+                margin={"t": 10, "b": 10, "l": 10, "r": 10},
+                height=320,
+                showlegend=False,
+                xaxis={"showgrid": False},
+                yaxis={"showgrid": True, "gridcolor": "#e5e7eb"},
+            )
             st.plotly_chart(fig2, use_container_width=True)
 
         # ── CWE & CVSS row ──
@@ -342,9 +414,19 @@ with tabs[1]:
             if cwes:
                 cwe_df = pd.Series(cwes).value_counts().reset_index()
                 cwe_df.columns = ["CWE", "Count"]
-                fig3 = px.bar(cwe_df, x="CWE", y="Count", color="Count", color_continuous_scale="RdYlGn_r")
-                fig3.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=280,
-                                   xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor="#e5e7eb"))
+                fig3 = px.bar(
+                    cwe_df,
+                    x="CWE",
+                    y="Count",
+                    color="Count",
+                    color_continuous_scale="RdYlGn_r",
+                )
+                fig3.update_layout(
+                    margin={"t": 10, "b": 10, "l": 10, "r": 10},
+                    height=280,
+                    xaxis={"showgrid": False},
+                    yaxis={"showgrid": True, "gridcolor": "#e5e7eb"},
+                )
                 st.plotly_chart(fig3, use_container_width=True)
             else:
                 st.info("No CWE-tagged weaknesses.")
@@ -352,18 +434,39 @@ with tabs[1]:
         with cvss_col:
             st.markdown("##### CVSS v3.1 Threat Matrix")
             cvss_items = [
-                {"Title": i.title[:35], "CVSS": i.cvss_score_estimate, "Severity": i.severity.value, "Line": i.line_start}
-                for i in res.issues if i.cvss_score_estimate
+                {
+                    "Title": i.title[:35],
+                    "CVSS": i.cvss_score_estimate,
+                    "Severity": i.severity.value,
+                    "Line": i.line_start,
+                }
+                for i in res.issues
+                if i.cvss_score_estimate
             ]
             if cvss_items:
                 cvss_df = pd.DataFrame(cvss_items)
                 fig4 = px.scatter(
-                    cvss_df, x="Line", y="CVSS", size="CVSS", color="Severity", hover_name="Title",
-                    color_discrete_map={"CRITICAL": "#dc2626", "HIGH": "#ea580c", "MEDIUM": "#ca8a04", "LOW": "#0284c7"},
+                    cvss_df,
+                    x="Line",
+                    y="CVSS",
+                    size="CVSS",
+                    color="Severity",
+                    hover_name="Title",
+                    color_discrete_map={
+                        "CRITICAL": "#dc2626",
+                        "HIGH": "#ea580c",
+                        "MEDIUM": "#ca8a04",
+                        "LOW": "#0284c7",
+                    },
                 )
-                fig4.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=280,
-                                   yaxis=dict(range=[0, 10.5], title="CVSS Score", gridcolor="#e5e7eb"),
-                                   xaxis=dict(title="Line Number", showgrid=False))
+                fig4.update_layout(
+                    margin={"t": 10, "b": 10, "l": 10, "r": 10},
+                    height=280,
+                    yaxis={
+                        "range": [0, 10.5], "title": "CVSS Score", "gridcolor": "#e5e7eb"
+                    },
+                    xaxis={"title": "Line Number", "showgrid": False},
+                )
                 st.plotly_chart(fig4, use_container_width=True)
             else:
                 st.info("No CVSS-scored vulnerabilities.")
@@ -387,8 +490,14 @@ with tabs[2]:
         file_issues: list[Issue] = []
         if st.session_state.review_result:
             file_issues = [
-                i for i in st.session_state.review_result.issues
-                if i.file_path in (selected_file, selected_file.lstrip("a/"), selected_file.lstrip("b/"))
+                i
+                for i in st.session_state.review_result.issues
+                if i.file_path
+                in (
+                    selected_file,
+                    selected_file.lstrip("a/"),
+                    selected_file.lstrip("b/"),
+                )
             ]
 
         left, right = st.columns([1, 1])
@@ -401,15 +510,23 @@ with tabs[2]:
                     lines_html = ['<div class="diff-viewer">']
                     for line in hunk.lines:
                         ln = line.new_line_no or line.old_line_no or 0
-                        has_flaw = any(i.line_start <= ln <= i.line_end for i in file_issues)
+                        has_flaw = any(
+                            i.line_start <= ln <= i.line_end for i in file_issues
+                        )
                         mark = ' <span class="flaw-mark">⚠</span>' if has_flaw else ""
 
                         if line.line_type == "ADD":
-                            lines_html.append(f'<span class="line-add">+{ln:3d}  {line.content}{mark}</span>')
+                            lines_html.append(
+                                f'<span class="line-add">+{ln:3d}  {line.content}{mark}</span>'
+                            )
                         elif line.line_type == "DEL":
-                            lines_html.append(f'<span class="line-del">-{ln:3d}  {line.content}</span>')
+                            lines_html.append(
+                                f'<span class="line-del">-{ln:3d}  {line.content}</span>'
+                            )
                         else:
-                            lines_html.append(f'<span class="line-ctx"> {ln:3d}  {line.content}</span>')
+                            lines_html.append(
+                                f'<span class="line-ctx"> {ln:3d}  {line.content}</span>'
+                            )
                     lines_html.append("</div>")
                     st.markdown("".join(lines_html), unsafe_allow_html=True)
 
@@ -428,11 +545,19 @@ with tabs[2]:
                     }
                     icon = severity_icons.get(issue.severity, "⚪")
                     cwe_tag = f"  ·  `{issue.cwe_id}`" if issue.cwe_id else ""
-                    cvss_tag = f"  ·  CVSS {issue.cvss_score_estimate}" if issue.cvss_score_estimate else ""
+                    cvss_tag = (
+                        f"  ·  CVSS {issue.cvss_score_estimate}"
+                        if issue.cvss_score_estimate
+                        else ""
+                    )
 
                     with st.container(border=True):
-                        st.markdown(f"{icon} **[{issue.severity.value}]** {issue.title}{cwe_tag}{cvss_tag}")
-                        st.caption(f"{issue.category.value}  ·  Lines {issue.line_start}–{issue.line_end}  ·  `{issue.file_path}`")
+                        st.markdown(
+                            f"{icon} **[{issue.severity.value}]** {issue.title}{cwe_tag}{cvss_tag}"
+                        )
+                        st.caption(
+                            f"{issue.category.value}  ·  Lines {issue.line_start}–{issue.line_end}  ·  `{issue.file_path}`"
+                        )
                         st.markdown(issue.description)
 
                         if issue.suggested_fix:
@@ -447,12 +572,17 @@ with tabs[2]:
 # ═══════════════════════════════════════════════
 with tabs[3]:
     st.subheader("PR Description Synthesizer")
-    st.markdown("Generate a Conventional Commit pull request description from a code diff.")
+    st.markdown(
+        "Generate a Conventional Commit pull request description from a code diff."
+    )
 
     if not st.session_state.current_diff:
         st.info("Load a diff in Tab 1 first.", icon="📝")
     else:
-        pr_title_hint = st.text_input("Title hint (optional)", placeholder="e.g. Add token refresh and sanitize queries")
+        pr_title_hint = st.text_input(
+            "Title hint (optional)",
+            placeholder="e.g. Add token refresh and sanitize queries",
+        )
 
         if st.button("Generate PR Description", type="primary", icon="✨"):
             with st.spinner("Synthesizing…"):
@@ -503,22 +633,33 @@ with tabs[3]:
 # ═══════════════════════════════════════════════
 with tabs[4]:
     st.subheader("Academic Benchmark Suite")
-    st.markdown("Evaluate GitSentry-AI against ground-truth annotated diffs. Computes **Precision**, **Recall**, **F1**, and **Detection Rate**.")
+    st.markdown(
+        "Evaluate GitSentry-AI against ground-truth annotated diffs. Computes **Precision**, **Recall**, **F1**, and **Detection Rate**."
+    )
 
-    if st.button("Run benchmark", type="primary", icon="🧪") or st.session_state.benchmark_result is None:
+    if (
+        st.button("Run benchmark", type="primary", icon="🧪")
+        or st.session_state.benchmark_result is None
+    ):
         with st.spinner("Evaluating ground-truth dataset…"):
             runner = BenchmarkRunner()
-            st.session_state.benchmark_result = runner.run_benchmark(force_offline=force_offline)
+            st.session_state.benchmark_result = runner.run_benchmark(
+                force_offline=force_offline
+            )
 
     b = st.session_state.benchmark_result
     if b:
         st.caption(f"Evaluated at {b.timestamp}")
 
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Precision", f"{b.precision*100:.1f}%", help="TP / (TP + FP)")
-        k2.metric("Recall", f"{b.recall*100:.1f}%", help="TP / (TP + FN)")
+        k1.metric("Precision", f"{b.precision * 100:.1f}%", help="TP / (TP + FP)")
+        k2.metric("Recall", f"{b.recall * 100:.1f}%", help="TP / (TP + FN)")
         k3.metric("F1 Score", f"{b.f1_score:.4f}", help="Harmonic mean of P and R")
-        k4.metric("Detection Rate", f"{b.detection_rate*100:.1f}%", help=f"{b.total_true_positives}/{b.total_expected_issues}")
+        k4.metric(
+            "Detection Rate",
+            f"{b.detection_rate * 100:.1f}%",
+            help=f"{b.total_true_positives}/{b.total_expected_issues}",
+        )
 
         st.divider()
         cm_col, detail_col = st.columns([1, 2])
@@ -526,25 +667,42 @@ with tabs[4]:
         with cm_col:
             st.markdown("##### Confusion Matrix")
             st.dataframe(
-                pd.DataFrame({
-                    "Metric": ["True Positives", "False Positives", "False Negatives", "Total Samples"],
-                    "Count": [b.total_true_positives, b.total_false_positives, b.total_false_negatives, b.total_samples],
-                }),
-                hide_index=True, use_container_width=True,
+                pd.DataFrame(
+                    {
+                        "Metric": [
+                            "True Positives",
+                            "False Positives",
+                            "False Negatives",
+                            "Total Samples",
+                        ],
+                        "Count": [
+                            b.total_true_positives,
+                            b.total_false_positives,
+                            b.total_false_negatives,
+                            b.total_samples,
+                        ],
+                    }
+                ),
+                hide_index=True,
+                use_container_width=True,
             )
 
         with detail_col:
             st.markdown("##### Per-Sample Results")
             rows = []
             for s in b.sample_results:
-                rows.append({
-                    "ID": s.sample_id,
-                    "File": s.file_name,
-                    "Expected": ", ".join(s.expected_cwe_ids) or "Clean",
-                    "Detected": ", ".join(s.detected_cwe_ids) or "Clean",
-                    "Health": f"{s.health_score}/100",
-                    "Status": "✅" if s.status == "PASS" else ("⚠️" if s.status == "PARTIAL" else "❌"),
-                })
+                rows.append(
+                    {
+                        "ID": s.sample_id,
+                        "File": s.file_name,
+                        "Expected": ", ".join(s.expected_cwe_ids) or "Clean",
+                        "Detected": ", ".join(s.detected_cwe_ids) or "Clean",
+                        "Health": f"{s.health_score}/100",
+                        "Status": "✅"
+                        if s.status == "PASS"
+                        else ("⚠️" if s.status == "PARTIAL" else "❌"),
+                    }
+                )
             st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
     # ── Viva Q&A ──
@@ -560,8 +718,12 @@ with tabs[4]:
         """)
 
     with st.expander("Q2: How does the Health Score formula work?"):
-        st.latex(r"\text{Score} = \max\!\bigl(0,\; 100 - (25 N_{\text{crit}} + 15 N_{\text{high}} + 8 N_{\text{med}} + 3 N_{\text{low}})\bigr)")
-        st.markdown("A single critical vulnerability (e.g. SQLi) drops the score below 75, triggering `REQUEST_CHANGES`.")
+        st.latex(
+            r"\text{Score} = \max\!\bigl(0,\; 100 - (25 N_{\text{crit}} + 15 N_{\text{high}} + 8 N_{\text{med}} + 3 N_{\text{low}})\bigr)"
+        )
+        st.markdown(
+            "A single critical vulnerability (e.g. SQLi) drops the score below 75, triggering `REQUEST_CHANGES`."
+        )
 
     with st.expander("Q3: CWE vs CVSS — what's the difference?"):
         st.markdown("""
@@ -623,7 +785,11 @@ with tabs[5]:
 """
         for idx, issue in enumerate(res_report.issues, 1):
             cwe = f" ({issue.cwe_id})" if issue.cwe_id else ""
-            cvss = f" · CVSS {issue.cvss_score_estimate}" if issue.cvss_score_estimate else ""
+            cvss = (
+                f" · CVSS {issue.cvss_score_estimate}"
+                if issue.cvss_score_estimate
+                else ""
+            )
             report_md += f"""
 ### {idx}. [{issue.severity.value}] {issue.title}{cwe}{cvss}
 - **File:** `{issue.file_path}` (lines {issue.line_start}–{issue.line_end})
@@ -667,11 +833,11 @@ pre {{ background: #f1f5f9; padding: 12px; border-radius: 6px; overflow-x: auto;
             sev = i.severity.value.lower()
             html_report += f"""<div class="finding {sev}">
 <strong>[{i.severity.value}] {i.title}</strong>
-{f' &mdash; <code>{i.cwe_id}</code>' if i.cwe_id else ''}
-{f' &mdash; CVSS {i.cvss_score_estimate}' if i.cvss_score_estimate else ''}
+{f" &mdash; <code>{i.cwe_id}</code>" if i.cwe_id else ""}
+{f" &mdash; CVSS {i.cvss_score_estimate}" if i.cvss_score_estimate else ""}
 <p><strong>Location:</strong> {i.file_path}:{i.line_start} &middot; <strong>Category:</strong> {i.category.value}</p>
 <p>{i.description}</p>
-{f'<pre><code>{i.suggested_fix}</code></pre>' if i.suggested_fix else ''}
+{f"<pre><code>{i.suggested_fix}</code></pre>" if i.suggested_fix else ""}
 </div>"""
         html_report += "</body></html>"
 
@@ -681,13 +847,15 @@ pre {{ background: #f1f5f9; padding: 12px; border-radius: 6px; overflow-x: auto;
             "Download Markdown report",
             data=report_md,
             file_name=f"AUDIT_REPORT_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
-            mime="text/markdown", use_container_width=True,
+            mime="text/markdown",
+            use_container_width=True,
         )
         d2.download_button(
             "Download HTML report",
             data=html_report,
             file_name=f"AUDIT_REPORT_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html",
-            mime="text/html", use_container_width=True,
+            mime="text/html",
+            use_container_width=True,
         )
 
         st.divider()

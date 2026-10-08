@@ -15,8 +15,9 @@ Automated static audit identified 2 findings across 1 file(s). [Offline Static A
 ```python
 # Retrieve secrets securely via environment variables:
 import os
-AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 ```
 
 ### [HIGH] Sensitive Token / Credential Exposure in Application Logs
@@ -25,5 +26,7 @@ AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
 - **Category:** SECURITY
 - **Description:** Cleartext bearer tokens or credentials printed directly to application logger. Log aggregation pipelines and monitoring systems may leak these sensitive credentials.
 ```python
-logger.info(f'Initiating cloud sync for user_id={user_id}')  # Do not log raw session tokens
+logger.info(
+    f"Initiating cloud sync for user_id={user_id}"
+)  # Do not log raw session tokens
 ```

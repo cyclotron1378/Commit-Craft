@@ -3,13 +3,15 @@
 Handles local repository discovery, branch/commit diff extraction,
 and staged change inspection.
 """
+
 import os
+
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 from pathlib import Path
-from typing import List, Optional, Dict, Any
 
 try:
     import git
+
     HAS_GIT = True
 except Exception:
     HAS_GIT = False
@@ -46,7 +48,7 @@ class GitManager:
         except TypeError:
             return "DETACHED_HEAD"
 
-    def get_branches(self) -> List[str]:
+    def get_branches(self) -> list[str]:
         if not self._repo:
             return []
         try:
@@ -54,19 +56,21 @@ class GitManager:
         except Exception:
             return []
 
-    def get_recent_commits(self, limit: int = 15) -> List[Dict[str, str]]:
+    def get_recent_commits(self, limit: int = 15) -> list[dict[str, str]]:
         if not self._repo:
             return []
         commits = []
         try:
             for commit in self._repo.iter_commits(max_count=limit):
-                commits.append({
-                    "hash": commit.hexsha[:8],
-                    "full_hash": commit.hexsha,
-                    "message": commit.summary,
-                    "author": commit.author.name,
-                    "date": commit.committed_datetime.strftime("%Y-%m-%d %H:%M"),
-                })
+                commits.append(
+                    {
+                        "hash": commit.hexsha[:8],
+                        "full_hash": commit.hexsha,
+                        "message": commit.summary,
+                        "author": commit.author.name,
+                        "date": commit.committed_datetime.strftime("%Y-%m-%d %H:%M"),
+                    }
+                )
         except Exception:
             pass
         return commits

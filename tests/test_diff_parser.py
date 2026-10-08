@@ -1,10 +1,11 @@
 """Unit tests for pure Python diff parser."""
+
 import unittest
-from src.diff_parser import DiffParser, ParsedDiff
+
+from src.diff_parser import DiffParser
 
 
 class TestDiffParser(unittest.TestCase):
-
     def test_empty_diff(self):
         parsed = DiffParser.parse("")
         self.assertEqual(parsed.total_files, 0)

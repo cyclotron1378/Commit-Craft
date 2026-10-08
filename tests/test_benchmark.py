@@ -1,10 +1,11 @@
 """Unit tests for Academic Benchmark & Evaluation Engine."""
+
 import unittest
+
 from src.benchmark import BenchmarkRunner
 
 
 class TestBenchmark(unittest.TestCase):
-
     def setUp(self):
         self.runner = BenchmarkRunner()
 

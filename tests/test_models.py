@@ -1,17 +1,18 @@
 """Unit tests for Pydantic models and Health Score formulas."""
+
 import unittest
+
 from src.models import (
     Issue,
-    IssueSeverity,
     IssueCategory,
-    ReviewResult,
+    IssueSeverity,
     MergeRecommendation,
     PRDescription,
+    ReviewResult,
 )
 
 
 class TestModels(unittest.TestCase):
-
     def test_health_score_calculation(self):
         # 1 Critical (-25) + 1 High (-15) + 1 Med (-8) + 1 Low (-3) = -51 => 49
         issues = [
@@ -79,7 +80,8 @@ class TestModels(unittest.TestCase):
                 description="Crit",
                 category=IssueCategory.SECURITY,
                 severity=IssueSeverity.CRITICAL,
-            ) for i in range(5)
+            )
+            for i in range(5)
         ]
         result = ReviewResult(summary="Severe Flaws", issues=issues)
         score = result.compute_health_score()
@@ -89,7 +91,9 @@ class TestModels(unittest.TestCase):
         # Clean diff -> APPROVE
         clean_result = ReviewResult(summary="Clean", issues=[])
         clean_result.compute_health_score()
-        self.assertEqual(clean_result.update_recommendation(), MergeRecommendation.APPROVE)
+        self.assertEqual(
+            clean_result.update_recommendation(), MergeRecommendation.APPROVE
+        )
 
         # Critical flaw -> REQUEST_CHANGES
         crit_result = ReviewResult(
@@ -105,10 +109,12 @@ class TestModels(unittest.TestCase):
                     category=IssueCategory.SECURITY,
                     severity=IssueSeverity.CRITICAL,
                 )
-            ]
+            ],
         )
         crit_result.compute_health_score()
-        self.assertEqual(crit_result.update_recommendation(), MergeRecommendation.REQUEST_CHANGES)
+        self.assertEqual(
+            crit_result.update_recommendation(), MergeRecommendation.REQUEST_CHANGES
+        )
 
     def test_pr_description_markdown_export(self):
         pr = PRDescription(

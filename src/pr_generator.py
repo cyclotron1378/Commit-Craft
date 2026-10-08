@@ -3,19 +3,20 @@
 Transforms unified multi-file diffs into high-quality Conventional Commit PR descriptions,
 architectural summaries, risk considerations, and testing checklists.
 """
+
 import logging
-from typing import Optional
+
 from google import genai
 from google.genai import types
 
 from src.config import (
-    GEMINI_API_KEY,
     DEFAULT_GEMINI_MODEL,
     DEFAULT_TEMPERATURE,
+    GEMINI_API_KEY,
     MAX_OUTPUT_TOKENS,
 )
-from src.models import PRDescription
 from src.diff_parser import DiffParser, ParsedDiff
+from src.models import PRDescription
 
 logger = logging.getLogger("gitsentry.pr_generator")
 
@@ -37,7 +38,9 @@ Requirements:
 class PRGenerator:
     """Synthesizes conventional PR descriptions using Gemini API."""
 
-    def __init__(self, api_key: Optional[str] = None, model_name: str = DEFAULT_GEMINI_MODEL):
+    def __init__(
+        self, api_key: str | None = None, model_name: str = DEFAULT_GEMINI_MODEL
+    ):
         self.api_key = api_key or GEMINI_API_KEY
         self.model_name = model_name
         self.client = None
@@ -45,12 +48,14 @@ class PRGenerator:
             try:
                 self.client = genai.Client(api_key=self.api_key)
             except Exception as e:
-                logger.warning(f"Could not initialize Gemini Client for PR generator: {e}")
+                logger.warning(
+                    f"Could not initialize Gemini Client for PR generator: {e}"
+                )
 
     def generate_pr_description(
         self,
         diff_text: str,
-        pr_title_hint: Optional[str] = None,
+        pr_title_hint: str | None = None,
         force_offline: bool = False,
     ) -> PRDescription:
         """Generate PR description from diff."""
@@ -61,15 +66,17 @@ class PRGenerator:
             try:
                 return self._generate_with_gemini(annotated_diff, pr_title_hint)
             except Exception as e:
-                logger.error(f"Gemini PR generation failed: {e}. Falling back to rule-based synthesis.")
+                logger.error(
+                    f"Gemini PR generation failed: {e}. Falling back to rule-based synthesis."
+                )
                 return self._fallback_synthesis(parsed, pr_title_hint)
         else:
             return self._fallback_synthesis(parsed, pr_title_hint)
 
-    def _generate_with_gemini(self, annotated_diff: str, pr_title_hint: Optional[str]) -> PRDescription:
-        prompt = (
-            f"Analyze the following code diff and generate a complete Conventional Commit PR description.\n"
-        )
+    def _generate_with_gemini(
+        self, annotated_diff: str, pr_title_hint: str | None
+    ) -> PRDescription:
+        prompt = "Analyze the following code diff and generate a complete Conventional Commit PR description.\n"
         if pr_title_hint:
             prompt += f"User context / PR title hint: {pr_title_hint}\n"
         prompt += f"\n--- DIFF ---\n{annotated_diff}\n--- END DIFF ---"
@@ -87,7 +94,9 @@ class PRGenerator:
         )
         return PRDescription.model_validate_json(response.text)
 
-    def _fallback_synthesis(self, parsed: ParsedDiff, pr_title_hint: Optional[str]) -> PRDescription:
+    def _fallback_synthesis(
+        self, parsed: ParsedDiff, pr_title_hint: str | None
+    ) -> PRDescription:
         """Rule-based PR description synthesizer for offline operation."""
         file_names = [f.file_path for f in parsed.files]
         first_file = file_names[0] if file_names else "core"
@@ -98,10 +107,18 @@ class PRGenerator:
         type_of_change = "Feature"
         prefix = "feat"
 
-        if "fix" in diff_str.lower() or "error" in diff_str.lower() or "bug" in diff_str.lower():
+        if (
+            "fix" in diff_str.lower()
+            or "error" in diff_str.lower()
+            or "bug" in diff_str.lower()
+        ):
             type_of_change = "Bug Fix"
             prefix = "fix"
-        elif "security" in diff_str.lower() or "cwe" in diff_str.lower() or "token" in diff_str.lower():
+        elif (
+            "security" in diff_str.lower()
+            or "cwe" in diff_str.lower()
+            or "token" in diff_str.lower()
+        ):
             type_of_change = "Security Hardening"
             prefix = "sec"
         elif "test" in first_file:
@@ -111,11 +128,15 @@ class PRGenerator:
             type_of_change = "Refactor"
             prefix = "refactor"
 
-        title = pr_title_hint or f"{prefix}({scope}): update {', '.join(file_names[:2])}"
+        title = (
+            pr_title_hint or f"{prefix}({scope}): update {', '.join(file_names[:2])}"
+        )
 
         key_changes = []
         for f in parsed.files:
-            key_changes.append(f"Updated `{f.file_path}` (+{f.additions_count} / -{f.deletions_count} lines)")
+            key_changes.append(
+                f"Updated `{f.file_path}` (+{f.additions_count} / -{f.deletions_count} lines)"
+            )
 
         testing_items = [
             "Verify all automated unit and integration tests pass successfully.",

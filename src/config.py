@@ -1,7 +1,10 @@
 """Configuration management for GitSentry-AI."""
+
 import os
+
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -37,6 +40,24 @@ HEALTH_SCORE_WEIGHTS = {
 
 # Supported File Extensions for Code Audit
 AUDITABLE_EXTENSIONS = {
-    ".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".c", ".cpp",
-    ".cs", ".go", ".rs", ".php", ".rb", ".sql", ".sh", ".html", ".css", ".yaml", ".yml", ".json"
+    ".py",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".java",
+    ".c",
+    ".cpp",
+    ".cs",
+    ".go",
+    ".rs",
+    ".php",
+    ".rb",
+    ".sql",
+    ".sh",
+    ".html",
+    ".css",
+    ".yaml",
+    ".yml",
+    ".json",
 }

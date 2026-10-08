@@ -8,20 +8,20 @@ Calculates quantitative metrics for academic papers, project defenses, and viva:
 - F1 Score: 2 * (P * R) / (P + R)
 - Detection Rate: TP / Total Expected Vulnerabilities
 """
-import sys
-import json
-from pathlib import Path
-from datetime import datetime
-from typing import List, Dict, Any, Optional
 
+import json
+import sys
+from datetime import datetime
+from pathlib import Path
+
+from src.config import PROJECT_ROOT
 from src.models import (
-    GroundTruthSample,
-    BenchmarkSampleResult,
     BenchmarkEvaluationResult,
+    BenchmarkSampleResult,
+    GroundTruthSample,
     ReviewResult,
 )
 from src.reviewer import CodeReviewer
-from src.config import PROJECT_ROOT
 
 
 class BenchmarkRunner:
@@ -29,18 +29,22 @@ class BenchmarkRunner:
 
     def __init__(
         self,
-        samples_dir: Optional[Path] = None,
-        ground_truth_path: Optional[Path] = None,
-        reviewer: Optional[CodeReviewer] = None,
+        samples_dir: Path | None = None,
+        ground_truth_path: Path | None = None,
+        reviewer: CodeReviewer | None = None,
     ):
         self.samples_dir = samples_dir or (PROJECT_ROOT / "samples")
-        self.ground_truth_path = ground_truth_path or (self.samples_dir / "ground_truth.json")
+        self.ground_truth_path = ground_truth_path or (
+            self.samples_dir / "ground_truth.json"
+        )
         self.reviewer = reviewer or CodeReviewer()
 
-    def load_ground_truth(self) -> List[GroundTruthSample]:
+    def load_ground_truth(self) -> list[GroundTruthSample]:
         """Load ground truth annotations from JSON."""
         if not self.ground_truth_path.exists():
-            raise FileNotFoundError(f"Ground truth dataset not found at {self.ground_truth_path}")
+            raise FileNotFoundError(
+                f"Ground truth dataset not found at {self.ground_truth_path}"
+            )
 
         with open(self.ground_truth_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -55,7 +59,9 @@ class BenchmarkRunner:
         """Run audit on a single ground-truth diff sample and compute metrics."""
         diff_file = self.samples_dir / sample.file_name
         if not diff_file.exists():
-            raise FileNotFoundError(f"Sample diff file '{sample.file_name}' not found in {self.samples_dir}")
+            raise FileNotFoundError(
+                f"Sample diff file '{sample.file_name}' not found in {self.samples_dir}"
+            )
 
         diff_text = diff_file.read_text(encoding="utf-8")
         review: ReviewResult = self.reviewer.review(
@@ -79,13 +85,20 @@ class BenchmarkRunner:
                     continue
 
                 # Criteria 1: Exact CWE match
-                if expected.cwe_id and detected.cwe_id and expected.cwe_id.upper() == detected.cwe_id.upper():
+                if (
+                    expected.cwe_id
+                    and detected.cwe_id
+                    and expected.cwe_id.upper() == detected.cwe_id.upper()
+                ):
                     matched_expected_indices.add(e_idx)
                     matched_detected_indices.add(d_idx)
                     break
 
                 # Criteria 2: Matching category and file if CWE is not defined (e.g. DOCUMENTATION)
-                if not expected.cwe_id and expected.category.upper() == detected.category.value.upper():
+                if (
+                    not expected.cwe_id
+                    and expected.category.upper() == detected.category.value.upper()
+                ):
                     matched_expected_indices.add(e_idx)
                     matched_detected_indices.add(d_idx)
                     break
@@ -108,7 +121,11 @@ class BenchmarkRunner:
             else:
                 status = "FAIL"
 
-        detection_rate = round((tp / len(expected_issues)), 3) if len(expected_issues) > 0 else (1.0 if status == "PASS" else 0.0)
+        detection_rate = (
+            round((tp / len(expected_issues)), 3)
+            if len(expected_issues) > 0
+            else (1.0 if status == "PASS" else 0.0)
+        )
 
         detected_cwes = [i.cwe_id for i in detected_issues if i.cwe_id]
         expected_cwes = [i.cwe_id for i in expected_issues if i.cwe_id]
@@ -129,7 +146,7 @@ class BenchmarkRunner:
     def run_benchmark(self, force_offline: bool = False) -> BenchmarkEvaluationResult:
         """Run full evaluation suite across all ground truth samples."""
         samples = self.load_ground_truth()
-        sample_results: List[BenchmarkSampleResult] = []
+        sample_results: list[BenchmarkSampleResult] = []
 
         total_tp = 0
         total_fp = 0
@@ -144,11 +161,19 @@ class BenchmarkRunner:
             total_fp += res.false_positives
             total_fn += res.false_negatives
             total_expected += len(sample.expected_issues)
-            total_detected += (res.true_positives + res.false_positives)
+            total_detected += res.true_positives + res.false_positives
 
-        precision = (total_tp / (total_tp + total_fp)) if (total_tp + total_fp) > 0 else 1.0
-        recall = (total_tp / (total_tp + total_fn)) if (total_tp + total_fn) > 0 else 1.0
-        f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+        precision = (
+            (total_tp / (total_tp + total_fp)) if (total_tp + total_fp) > 0 else 1.0
+        )
+        recall = (
+            (total_tp / (total_tp + total_fn)) if (total_tp + total_fn) > 0 else 1.0
+        )
+        f1 = (
+            (2 * precision * recall / (precision + recall))
+            if (precision + recall) > 0
+            else 0.0
+        )
         detection_rate = (total_tp / total_expected) if total_expected > 0 else 1.0
 
         return BenchmarkEvaluationResult(
@@ -180,14 +205,20 @@ def print_benchmark_cli(result: BenchmarkEvaluationResult):
     print(f"  Precision       (P)  : {result.precision * 100:.1f}%   [TP / (TP + FP)]")
     print(f"  Recall          (R)  : {result.recall * 100:.1f}%   [TP / (TP + FN)]")
     print(f"  F1-Score             : {result.f1_score:.4f}  [2 * (P * R) / (P + R)]")
-    print(f"  Detection Rate       : {result.detection_rate * 100:.1f}%   [TP / Expected]")
+    print(
+        f"  Detection Rate       : {result.detection_rate * 100:.1f}%   [TP / Expected]"
+    )
     print("=" * 80)
-    print(f"{'Sample ID':<12} {'File Name':<32} {'Expected':<12} {'Detected':<12} {'Status':<8} {'Score':<6}")
+    print(
+        f"{'Sample ID':<12} {'File Name':<32} {'Expected':<12} {'Detected':<12} {'Status':<8} {'Score':<6}"
+    )
     print("-" * 80)
     for s in result.sample_results:
         exp_str = ",".join(s.expected_cwe_ids) or "Clean"
         det_str = ",".join(s.detected_cwe_ids) or "Clean"
-        print(f"{s.sample_id:<12} {s.file_name[:30]:<32} {exp_str[:11]:<12} {det_str[:11]:<12} {s.status:<8} {s.health_score:<6}")
+        print(
+            f"{s.sample_id:<12} {s.file_name[:30]:<32} {exp_str[:11]:<12} {det_str[:11]:<12} {s.status:<8} {s.health_score:<6}"
+        )
     print("=" * 80)
 
 

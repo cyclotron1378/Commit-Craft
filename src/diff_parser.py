@@ -3,45 +3,49 @@
 Operates independently of local Git CLI installations. Parses git unified diffs,
 extracts hunks, additions, deletions, and maps line numbers accurately.
 """
+
 import re
-from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 
 class DiffLine(BaseModel):
     """Represents a single line inside a unified diff hunk."""
+
     line_type: str  # "ADD", "DEL", "CONTEXT"
     content: str
-    old_line_no: Optional[int] = None
-    new_line_no: Optional[int] = None
+    old_line_no: int | None = None
+    new_line_no: int | None = None
 
 
 class DiffHunk(BaseModel):
     """Represents a single diff hunk starting with @@ -l,s +l,s @@."""
+
     old_start: int
     old_lines: int
     new_start: int
     new_lines: int
     header: str
-    lines: List[DiffLine] = Field(default_factory=list)
+    lines: list[DiffLine] = Field(default_factory=list)
 
     @property
-    def added_lines(self) -> List[DiffLine]:
+    def added_lines(self) -> list[DiffLine]:
         return [l for l in self.lines if l.line_type == "ADD"]
 
     @property
-    def deleted_lines(self) -> List[DiffLine]:
+    def deleted_lines(self) -> list[DiffLine]:
         return [l for l in self.lines if l.line_type == "DEL"]
 
 
 class FileDiff(BaseModel):
     """Represents changes to a single file within a diff."""
+
     old_path: str
     new_path: str
     is_new: bool = False
     is_deleted: bool = False
     is_renamed: bool = False
-    hunks: List[DiffHunk] = Field(default_factory=list)
+    hunks: list[DiffHunk] = Field(default_factory=list)
     additions_count: int = 0
     deletions_count: int = 0
     raw_patch: str = ""
@@ -77,12 +81,13 @@ class FileDiff(BaseModel):
 
 class ParsedDiff(BaseModel):
     """Complete parsed multi-file unified diff representation."""
-    files: List[FileDiff] = Field(default_factory=list)
+
+    files: list[FileDiff] = Field(default_factory=list)
     total_files: int = 0
     total_additions: int = 0
     total_deletions: int = 0
 
-    def get_file(self, path: str) -> Optional[FileDiff]:
+    def get_file(self, path: str) -> FileDiff | None:
         for f in self.files:
             if f.file_path == path or f.new_path == path or f.old_path == path:
                 return f
@@ -99,19 +104,23 @@ class ParsedDiff(BaseModel):
 class DiffParser:
     """Robust parser for Unified Diff text format."""
 
-    HUNK_HEADER_REGEX = re.compile(r"^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@(.*)$")
+    HUNK_HEADER_REGEX = re.compile(
+        r"^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@(.*)$"
+    )
 
     @classmethod
     def parse(cls, diff_text: str) -> ParsedDiff:
         """Parse raw unified diff string into structured ParsedDiff object."""
         if not diff_text or not diff_text.strip():
-            return ParsedDiff(files=[], total_files=0, total_additions=0, total_deletions=0)
+            return ParsedDiff(
+                files=[], total_files=0, total_additions=0, total_deletions=0
+            )
 
         lines = diff_text.splitlines()
-        files: List[FileDiff] = []
-        current_file: Optional[FileDiff] = None
-        current_hunk: Optional[DiffHunk] = None
-        current_file_raw_lines: List[str] = []
+        files: list[FileDiff] = []
+        current_file: FileDiff | None = None
+        current_hunk: DiffHunk | None = None
+        current_file_raw_lines: list[str] = []
 
         old_line_cursor = 0
         new_line_cursor = 0
@@ -132,8 +141,8 @@ class DiffParser:
 
                 # Parse paths
                 parts = line.split(" ")
-                old_path = parts[2][2:] if parts[2].startswith("a/") else parts[2]
-                new_path = parts[3][2:] if parts[3].startswith("b/") else parts[3]
+                old_path = parts[2].removeprefix("a/")
+                new_path = parts[3].removeprefix("b/")
                 current_file = FileDiff(old_path=old_path, new_path=new_path)
                 current_file_raw_lines.append(line)
                 i += 1
@@ -154,12 +163,12 @@ class DiffParser:
                         current_file_raw_lines = []
 
                     old_path_raw = line[4:].strip().split("\t")[0]
-                    old_path = old_path_raw[2:] if old_path_raw.startswith("a/") else old_path_raw
+                    old_path = old_path_raw.removeprefix("a/")
                     # Look ahead for +++
                     new_path = old_path
                     if i + 1 < len(lines) and lines[i + 1].startswith("+++ "):
                         new_path_raw = lines[i + 1][4:].strip().split("\t")[0]
-                        new_path = new_path_raw[2:] if new_path_raw.startswith("b/") else new_path_raw
+                        new_path = new_path_raw.removeprefix("b/")
                         current_file_raw_lines.append(line)
                         current_file_raw_lines.append(lines[i + 1])
                         i += 2
@@ -185,10 +194,10 @@ class DiffParser:
                 current_file.is_renamed = True
             elif line.startswith("--- "):
                 path_part = line[4:].strip().split("\t")[0]
-                current_file.old_path = path_part[2:] if path_part.startswith("a/") else path_part
+                current_file.old_path = path_part.removeprefix("a/")
             elif line.startswith("+++ "):
                 path_part = line[4:].strip().split("\t")[0]
-                current_file.new_path = path_part[2:] if path_part.startswith("b/") else path_part
+                current_file.new_path = path_part.removeprefix("b/")
 
             # Hunk header: @@ -old_start,old_lines +new_start,new_lines @@
             elif line.startswith("@@"):
@@ -207,35 +216,41 @@ class DiffParser:
                         old_lines=old_lines,
                         new_start=new_start,
                         new_lines=new_lines,
-                        header=line
+                        header=line,
                     )
                     old_line_cursor = old_start
                     new_line_cursor = new_start
             elif current_hunk:
                 if line.startswith("+"):
-                    current_hunk.lines.append(DiffLine(
-                        line_type="ADD",
-                        content=line[1:],
-                        new_line_no=new_line_cursor
-                    ))
+                    current_hunk.lines.append(
+                        DiffLine(
+                            line_type="ADD",
+                            content=line[1:],
+                            new_line_no=new_line_cursor,
+                        )
+                    )
                     new_line_cursor += 1
                     current_file.additions_count += 1
                 elif line.startswith("-"):
-                    current_hunk.lines.append(DiffLine(
-                        line_type="DEL",
-                        content=line[1:],
-                        old_line_no=old_line_cursor
-                    ))
+                    current_hunk.lines.append(
+                        DiffLine(
+                            line_type="DEL",
+                            content=line[1:],
+                            old_line_no=old_line_cursor,
+                        )
+                    )
                     old_line_cursor += 1
                     current_file.deletions_count += 1
                 elif line.startswith(" ") or line == "":
                     content = line[1:] if line.startswith(" ") else ""
-                    current_hunk.lines.append(DiffLine(
-                        line_type="CONTEXT",
-                        content=content,
-                        old_line_no=old_line_cursor,
-                        new_line_no=new_line_cursor
-                    ))
+                    current_hunk.lines.append(
+                        DiffLine(
+                            line_type="CONTEXT",
+                            content=content,
+                            old_line_no=old_line_cursor,
+                            new_line_no=new_line_cursor,
+                        )
+                    )
                     old_line_cursor += 1
                     new_line_cursor += 1
 
@@ -255,5 +270,5 @@ class DiffParser:
             files=files,
             total_files=len(files),
             total_additions=total_adds,
-            total_deletions=total_dels
+            total_deletions=total_dels,
         )

@@ -2,20 +2,23 @@
 
 Fetches Pull Request diffs, PR metadata, and handles automated review posting.
 """
-from typing import Dict, Any, Optional, Tuple
+
+from typing import Any
+
 import requests
-from github import Github, Auth
+from github import Auth, Github
+
 from src.config import GITHUB_TOKEN
 
 
 class GitHubClient:
     """Client for interacting with GitHub Pull Requests and Repositories."""
 
-    def __init__(self, token: Optional[str] = None):
+    def __init__(self, token: str | None = None):
         self.token = token or GITHUB_TOKEN
         self._gh = Github(auth=Auth.Token(self.token)) if self.token else Github()
 
-    def get_headers(self) -> Dict[str, str]:
+    def get_headers(self) -> dict[str, str]:
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": "GitSentry-AI",
@@ -24,9 +27,11 @@ class GitHubClient:
             headers["Authorization"] = f"token {self.token}"
         return headers
 
-    def fetch_pr_diff_and_meta(self, repo_name: str, pr_number: int) -> Tuple[Optional[str], Optional[Dict[str, Any]], Optional[str]]:
+    def fetch_pr_diff_and_meta(
+        self, repo_name: str, pr_number: int
+    ) -> tuple[str | None, dict[str, Any] | None, str | None]:
         """Fetch unified diff and metadata for a pull request.
-        
+
         Args:
             repo_name: Format 'owner/repo' (e.g. 'pallets/flask')
             pr_number: Pull request integer number
@@ -42,11 +47,23 @@ class GitHubClient:
         try:
             res_meta = requests.get(meta_url, headers=self.get_headers(), timeout=15)
             if res_meta.status_code == 404:
-                return None, None, f"Repository or PR not found: '{repo_name}#{pr_number}'."
+                return (
+                    None,
+                    None,
+                    f"Repository or PR not found: '{repo_name}#{pr_number}'.",
+                )
             elif res_meta.status_code == 403:
-                return None, None, "GitHub API rate limit exceeded or access forbidden. Please set a GITHUB_TOKEN."
+                return (
+                    None,
+                    None,
+                    "GitHub API rate limit exceeded or access forbidden. Please set a GITHUB_TOKEN.",
+                )
             elif res_meta.status_code != 200:
-                return None, None, f"GitHub API error {res_meta.status_code}: {res_meta.text}"
+                return (
+                    None,
+                    None,
+                    f"GitHub API error {res_meta.status_code}: {res_meta.text}",
+                )
 
             meta = res_meta.json()
             pr_info = {
@@ -67,14 +84,20 @@ class GitHubClient:
             diff_headers["Accept"] = "application/vnd.github.v3.diff"
             res_diff = requests.get(meta_url, headers=diff_headers, timeout=20)
             if res_diff.status_code != 200:
-                return None, pr_info, f"Could not fetch PR diff ({res_diff.status_code})"
+                return (
+                    None,
+                    pr_info,
+                    f"Could not fetch PR diff ({res_diff.status_code})",
+                )
 
             return res_diff.text, pr_info, None
 
         except requests.RequestException as e:
             return None, None, f"Network error communicating with GitHub API: {e}"
 
-    def post_pr_review_comment(self, repo_name: str, pr_number: int, body: str, event: str = "COMMENT") -> Tuple[bool, str]:
+    def post_pr_review_comment(
+        self, repo_name: str, pr_number: int, body: str, event: str = "COMMENT"
+    ) -> tuple[bool, str]:
         """Post an automated code review to GitHub PR. Requires GITHUB_TOKEN."""
         if not self.token:
             return False, "GITHUB_TOKEN is required to post review comments."

@@ -7,8 +7,9 @@ Supports:
 - Pre-push / pre-commit hook installation
 - GitHub PR reviews
 """
-import sys
+
 import argparse
+import sys
 from pathlib import Path
 
 # Ensure Windows terminal doesn't crash on emoji characters
@@ -16,22 +17,22 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-from colorama import init, Fore, Style
+from colorama import Fore, Style, init
 
-from src.models import ReviewResult, PRDescription, IssueSeverity
-from src.diff_parser import DiffParser
-from src.git_manager import GitManager
-from src.github_client import GitHubClient
-from src.reviewer import CodeReviewer
-from src.pr_generator import PRGenerator
 from src.benchmark import BenchmarkRunner, print_benchmark_cli
-from src.config import GEMINI_API_KEY, PROJECT_ROOT
+from src.git_manager import GitManager
+from src.models import IssueSeverity, ReviewResult
+from src.pr_generator import PRGenerator
+from src.reviewer import CodeReviewer
 
 init(autoreset=True)
 
 
 def banner():
-    print(Fore.CYAN + Style.BRIGHT + r"""
+    print(
+        Fore.CYAN
+        + Style.BRIGHT
+        + r"""
    _____ _ _   _____            _                   ___  _____ 
   / ____(_) | / ____|          | |                 / _ \|_   _|
  | |  __ _| |_| (___   ___ _ __ | |_ _ __ _   _    / /_\ \ | |  
@@ -41,14 +42,18 @@ def banner():
                                            __/ |/               
                                           |___/                 
     Automated Code Audit, Vulnerability Intelligence & PR Synthesizer
-""" + Style.RESET_ALL)
+"""
+        + Style.RESET_ALL
+    )
 
 
 def format_cli_review(result: ReviewResult):
     """Print structured review results to the terminal."""
     print("=" * 80)
     print(f" {Fore.YELLOW}AUDIT SUMMARY:{Style.RESET_ALL} {result.summary}")
-    print(f" {Fore.CYAN}Target:{Style.RESET_ALL} {result.repo_name} @ {result.target_ref}")
+    print(
+        f" {Fore.CYAN}Target:{Style.RESET_ALL} {result.repo_name} @ {result.target_ref}"
+    )
 
     # Health score color
     if result.health_score >= 85:
@@ -58,16 +63,26 @@ def format_cli_review(result: ReviewResult):
     else:
         score_color = Fore.RED
 
-    print(f" {Fore.WHITE}Repository Health Score:{Style.RESET_ALL} {score_color}{Style.BRIGHT}{result.health_score}/100{Style.RESET_ALL}")
-    print(f" {Fore.WHITE}Documentation Coverage :{Style.RESET_ALL} {result.docstring_coverage_pct:.1f}%")
-    print(f" {Fore.WHITE}Gate Recommendation    :{Style.RESET_ALL} {Style.BRIGHT}{result.merge_recommendation.value}{Style.RESET_ALL}")
+    print(
+        f" {Fore.WHITE}Repository Health Score:{Style.RESET_ALL} {score_color}{Style.BRIGHT}{result.health_score}/100{Style.RESET_ALL}"
+    )
+    print(
+        f" {Fore.WHITE}Documentation Coverage :{Style.RESET_ALL} {result.docstring_coverage_pct:.1f}%"
+    )
+    print(
+        f" {Fore.WHITE}Gate Recommendation    :{Style.RESET_ALL} {Style.BRIGHT}{result.merge_recommendation.value}{Style.RESET_ALL}"
+    )
     print("=" * 80)
 
     if not result.issues:
-        print(f"\n{Fore.GREEN}✔ Zero security vulnerabilities or code smells identified. Clean diff!{Style.RESET_ALL}\n")
+        print(
+            f"\n{Fore.GREEN}✔ Zero security vulnerabilities or code smells identified. Clean diff!{Style.RESET_ALL}\n"
+        )
         return
 
-    print(f"\n{Fore.LIGHTMAGENTA_EX}IDENTIFIED ISSUES ({len(result.issues)}):{Style.RESET_ALL}\n")
+    print(
+        f"\n{Fore.LIGHTMAGENTA_EX}IDENTIFIED ISSUES ({len(result.issues)}):{Style.RESET_ALL}\n"
+    )
     for issue in result.issues:
         sev_color = {
             IssueSeverity.CRITICAL: Fore.RED + Style.BRIGHT,
@@ -78,10 +93,16 @@ def format_cli_review(result: ReviewResult):
         }.get(issue.severity, Fore.WHITE)
 
         cwe_str = f" [{issue.cwe_id}]" if issue.cwe_id else ""
-        cvss_str = f" [CVSS: {issue.cvss_score_estimate}]" if issue.cvss_score_estimate else ""
+        cvss_str = (
+            f" [CVSS: {issue.cvss_score_estimate}]" if issue.cvss_score_estimate else ""
+        )
 
-        print(f"  • {sev_color}[{issue.severity.value}]{Style.RESET_ALL} {Style.BRIGHT}{issue.title}{Style.RESET_ALL}{cwe_str}{cvss_str}")
-        print(f"    Location: {Fore.BLUE}{issue.file_path}:{issue.line_start}-{issue.line_end}{Style.RESET_ALL}")
+        print(
+            f"  • {sev_color}[{issue.severity.value}]{Style.RESET_ALL} {Style.BRIGHT}{issue.title}{Style.RESET_ALL}{cwe_str}{cvss_str}"
+        )
+        print(
+            f"    Location: {Fore.BLUE}{issue.file_path}:{issue.line_start}-{issue.line_end}{Style.RESET_ALL}"
+        )
         print(f"    Category: {issue.category.value}")
         print(f"    Detail  : {issue.description}")
         if issue.suggested_fix:
@@ -129,7 +150,10 @@ def cmd_review(args):
             diff_text = sys.stdin.read()
             target_name = "STDIN Diff"
         else:
-            print(Fore.RED + "Error: Please specify --file, --staged, --uncommitted, --commit, or pipe diff to STDIN.")
+            print(
+                Fore.RED
+                + "Error: Please specify --file, --staged, --uncommitted, --commit, or pipe diff to STDIN."
+            )
             sys.exit(1)
 
     reviewer = CodeReviewer(api_key=args.api_key)
@@ -173,7 +197,11 @@ def cmd_review(args):
 
     if args.fail_on_critical:
         if result.critical_count > 0 or result.health_score < args.min_health_score:
-            print(Fore.RED + Style.BRIGHT + f"❌ CI/CD Gate Failed: Critical issues detected or Health Score ({result.health_score}) < threshold ({args.min_health_score}).")
+            print(
+                Fore.RED
+                + Style.BRIGHT
+                + f"❌ CI/CD Gate Failed: Critical issues detected or Health Score ({result.health_score}) < threshold ({args.min_health_score})."
+            )
             sys.exit(1)
 
 
@@ -200,7 +228,12 @@ def cmd_pr(args):
 
     md_output = pr_desc.to_markdown()
     print("=" * 80)
-    print(Fore.GREEN + Style.BRIGHT + "  SYNTHESIZED PULL REQUEST DESCRIPTION" + Style.RESET_ALL)
+    print(
+        Fore.GREEN
+        + Style.BRIGHT
+        + "  SYNTHESIZED PULL REQUEST DESCRIPTION"
+        + Style.RESET_ALL
+    )
     print("=" * 80)
     print(md_output)
     print("=" * 80)
@@ -219,14 +252,17 @@ def cmd_benchmark(args):
 def cmd_install_hook(args):
     git_dir = Path(".git")
     if not git_dir.exists():
-        print(Fore.RED + "Error: No .git directory found. Must run from root of a git repository.")
+        print(
+            Fore.RED
+            + "Error: No .git directory found. Must run from root of a git repository."
+        )
         sys.exit(1)
 
     hooks_dir = git_dir / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
     hook_path = hooks_dir / args.hook_type
 
-    script_content = f"""#!/bin/sh
+    script_content = """#!/bin/sh
 # GitSentry-AI Automated Pre-Push / Pre-Commit Quality Gate
 echo "🛡️ GitSentry-AI: Inspecting staged code diffs..."
 python cli.py review --staged --fail-on-critical --min-health-score 70
@@ -239,42 +275,82 @@ echo "✔ GitSentry-AI: Quality Gate passed!"
 exit 0
 """
     hook_path.write_text(script_content, encoding="utf-8")
-    print(Fore.GREEN + Style.BRIGHT + f"✔ Git hook installed successfully at '{hook_path}'.")
+    print(
+        Fore.GREEN
+        + Style.BRIGHT
+        + f"✔ Git hook installed successfully at '{hook_path}'."
+    )
 
 
 def main():
     banner()
-    parser = argparse.ArgumentParser(description="GitSentry-AI: Automated Code Audit & PR Synthesizer")
+    parser = argparse.ArgumentParser(
+        description="GitSentry-AI: Automated Code Audit & PR Synthesizer"
+    )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Review command
     p_review = subparsers.add_parser("review", help="Audit a git diff or code changes")
     p_review.add_argument("--file", "-f", help="Path to diff file")
-    p_review.add_argument("--staged", "-s", action="store_true", help="Audit git staged changes")
-    p_review.add_argument("--uncommitted", "-u", action="store_true", help="Audit all uncommitted changes")
+    p_review.add_argument(
+        "--staged", "-s", action="store_true", help="Audit git staged changes"
+    )
+    p_review.add_argument(
+        "--uncommitted", "-u", action="store_true", help="Audit all uncommitted changes"
+    )
     p_review.add_argument("--commit", "-c", help="Audit a specific commit hash")
-    p_review.add_argument("--offline", action="store_true", help="Force offline static analyzer")
+    p_review.add_argument(
+        "--offline", action="store_true", help="Force offline static analyzer"
+    )
     p_review.add_argument("--api-key", help="Gemini API Key override")
-    p_review.add_argument("--output", "-o", help="File to write report (Markdown or JSON)")
-    p_review.add_argument("--fail-on-critical", action="store_true", help="Exit code 1 if critical issues found")
-    p_review.add_argument("--min-health-score", type=int, default=70, help="Minimum health score threshold (default: 70)")
+    p_review.add_argument(
+        "--output", "-o", help="File to write report (Markdown or JSON)"
+    )
+    p_review.add_argument(
+        "--fail-on-critical",
+        action="store_true",
+        help="Exit code 1 if critical issues found",
+    )
+    p_review.add_argument(
+        "--min-health-score",
+        type=int,
+        default=70,
+        help="Minimum health score threshold (default: 70)",
+    )
 
     # PR command
-    p_pr = subparsers.add_parser("pr", help="Synthesize Conventional Commit PR description")
+    p_pr = subparsers.add_parser(
+        "pr", help="Synthesize Conventional Commit PR description"
+    )
     p_pr.add_argument("--file", "-f", help="Path to diff file")
-    p_pr.add_argument("--staged", "-s", action="store_true", help="Generate from staged changes")
+    p_pr.add_argument(
+        "--staged", "-s", action="store_true", help="Generate from staged changes"
+    )
     p_pr.add_argument("--title", help="Optional title hint")
-    p_pr.add_argument("--offline", action="store_true", help="Force offline synthesizer")
+    p_pr.add_argument(
+        "--offline", action="store_true", help="Force offline synthesizer"
+    )
     p_pr.add_argument("--api-key", help="Gemini API Key override")
     p_pr.add_argument("--output", "-o", help="Save PR markdown to file")
 
     # Benchmark command
-    p_bench = subparsers.add_parser("benchmark", help="Run academic evaluation benchmark")
-    p_bench.add_argument("--offline", action="store_true", help="Force offline benchmark evaluation")
+    p_bench = subparsers.add_parser(
+        "benchmark", help="Run academic evaluation benchmark"
+    )
+    p_bench.add_argument(
+        "--offline", action="store_true", help="Force offline benchmark evaluation"
+    )
 
     # Hook command
-    p_hook = subparsers.add_parser("install-hook", help="Install GitSentry-AI git pre-push or pre-commit hook")
-    p_hook.add_argument("--hook-type", choices=["pre-push", "pre-commit"], default="pre-push", help="Type of git hook")
+    p_hook = subparsers.add_parser(
+        "install-hook", help="Install GitSentry-AI git pre-push or pre-commit hook"
+    )
+    p_hook.add_argument(
+        "--hook-type",
+        choices=["pre-push", "pre-commit"],
+        default="pre-push",
+        help="Type of git hook",
+    )
 
     args = parser.parse_args()
 
