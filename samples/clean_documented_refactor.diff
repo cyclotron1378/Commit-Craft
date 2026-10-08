@@ -1,0 +1,44 @@
+diff --git a/services/user_service.py b/services/user_service.py
+index 1029384..5647382 100644
+--- a/services/user_service.py
++++ b/services/user_service.py
+@@ -1,5 +1,6 @@
+ import os
+ import logging
++from typing import Optional, Dict, Any
+ from database import get_db_connection
+
+ logger = logging.getLogger(__name__)
+@@ -15,6 +16,34 @@ class UserService:
+         self.connection_pool = pool
+
++    def fetch_user_by_id(self, user_id: int) -> Optional[Dict[str, Any]]:
++        """Retrieve user account records by primary key with parameterized safety.
++
++        Args:
++            user_id: Unique integer identifier for the user account.
++
++        Returns:
++            Dict containing user profile details, or None if record is absent.
++
++        Raises:
++            DatabaseConnectionError: If pool query execution fails.
++        """
++        try:
++            with self.connection_pool.get_connection() as conn:
++                with conn.cursor() as cursor:
++                    # Secure parameterized query preventing SQL injection
++                    query = "SELECT user_id, email, full_name, is_active FROM users WHERE user_id = %s"
++                    cursor.execute(query, (user_id,))
++                    record = cursor.fetchone()
++                    if record:
++                        return {
++                            "user_id": record[0],
++                            "email": record[1],
++                            "full_name": record[2],
++                            "is_active": bool(record[3]),
++                        }
++                    return None
++        except Exception as err:
++            logger.error(f"Failed to fetch user {user_id} due to database error: {err}", exc_info=True)
++            raise

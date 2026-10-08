@@ -1,0 +1,25 @@
+diff --git a/routes/profile_router.py b/routes/profile_router.py
+index 99a1b2c..55d4e3f 100644
+--- a/routes/profile_router.py
++++ b/routes/profile_router.py
+@@ -12,6 +12,23 @@ from flask import Blueprint, request, render_template_string
+ profile_bp = Blueprint('profile', __name__)
+
++@profile_bp.route('/view_profile', methods=['GET'])
++def view_profile():
++    """Render the user profile badge."""
++    try:
++        display_name = request.args.get('name', 'Anonymous')
++        bio = request.args.get('bio', '')
++        
++        # Render raw user string directly into HTML response template
++        html_payload = f"<div class='profile-card'><h2>Hello {display_name}</h2><p>{bio}</p></div>"
++        return render_template_string(html_payload)
++    except:
++        # Silently swallow any parsing errors
++        pass
++    return "An error occurred", 500
++
+ def calculate_reputation(user_id):
+     """Calculate user karma score."""
+     return 100

@@ -1,0 +1,81 @@
+[
+  {
+    "sample_id": "BENCH-001",
+    "file_name": "sqli_and_missing_docs.diff",
+    "description": "User login query with SQL Injection via f-string and missing function docstring",
+    "is_clean": false,
+    "expected_issues": [
+      {
+        "file_path": "services/auth_service.py",
+        "cwe_id": "CWE-89",
+        "category": "SECURITY",
+        "severity": "CRITICAL",
+        "description": "SQL Injection vulnerability via unsanitized f-string parameter interpolation in cursor query",
+        "line_hint": 15
+      },
+      {
+        "file_path": "services/auth_service.py",
+        "cwe_id": null,
+        "category": "DOCUMENTATION",
+        "severity": "LOW",
+        "description": "Missing contract docstring on public API function handle_user_login",
+        "line_hint": 10
+      }
+    ]
+  },
+  {
+    "sample_id": "BENCH-002",
+    "file_name": "hardcoded_secret_and_leak.diff",
+    "description": "Hardcoded production AWS cloud credentials and session token logging leak",
+    "is_clean": false,
+    "expected_issues": [
+      {
+        "file_path": "config/cloud_storage.py",
+        "cwe_id": "CWE-798",
+        "category": "SECURITY",
+        "severity": "CRITICAL",
+        "description": "Hardcoded AWS Access Key and Secret Access Key embedded in source repository",
+        "line_hint": 7
+      },
+      {
+        "file_path": "config/cloud_storage.py",
+        "cwe_id": "CWE-532",
+        "category": "SECURITY",
+        "severity": "HIGH",
+        "description": "Insertion of sensitive cleartext authentication token into logging system",
+        "line_hint": 13
+      }
+    ]
+  },
+  {
+    "sample_id": "BENCH-003",
+    "file_name": "xss_and_unhandled_err.diff",
+    "description": "Reflected Cross-Site Scripting (XSS) via unescaped template string and bare except block",
+    "is_clean": false,
+    "expected_issues": [
+      {
+        "file_path": "routes/profile_router.py",
+        "cwe_id": "CWE-79",
+        "category": "SECURITY",
+        "severity": "HIGH",
+        "description": "Reflected Cross-Site Scripting via unescaped string formatting in render_template_string",
+        "line_hint": 21
+      },
+      {
+        "file_path": "routes/profile_router.py",
+        "cwe_id": "CWE-754",
+        "category": "CODE_SMELL",
+        "severity": "MEDIUM",
+        "description": "Silent exception swallowing via bare except: pass anti-pattern",
+        "line_hint": 24
+      }
+    ]
+  },
+  {
+    "sample_id": "BENCH-004",
+    "file_name": "clean_documented_refactor.diff",
+    "description": "Clean, secure database lookup refactor with parameterized queries and complete docstrings",
+    "is_clean": true,
+    "expected_issues": []
+  }
+]
